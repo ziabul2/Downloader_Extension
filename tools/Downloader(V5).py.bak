@@ -579,6 +579,25 @@ class DownloadRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(stats).encode('utf-8'))
+            
+        elif self.path == '/check_update':
+            # Trigger self-update check
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            result = check_self_update(restart=False)
+            self.wfile.write(json.dumps(result).encode('utf-8'))
+            
+            if result.get('status') == 'updated':
+                def delayed_restart():
+                    time.sleep(1)
+                    print("🔄 Restarting application...")
+                    os.execv(sys.executable, [sys.executable, __file__])
+                
+                threading.Thread(target=delayed_restart, daemon=True).start()
+                
         else:
             self.send_error(404)
 
@@ -635,33 +654,6 @@ class DownloadRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
             except Exception as e:
                 self.send_error(500, str(e))
-        elif self.path == '/check_update':
-            # Trigger self-update check
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            
-            # Run check in separate thread to allow response to send if restart happens
-            # But we want the result.
-            # If updated, it restarts, so response might fail if not sent quickly.
-            # We will send "started" or run check synchronously but delay restart.
-            
-            # Actually, let's run it synchronously but handle restart carefully.
-            # If we restart inside the function, this thread dies.
-            # So we will pass restart=False to check, then restart if needed after sending response.
-            
-            result = check_self_update(restart=False)
-            self.wfile.write(json.dumps(result).encode('utf-8'))
-            
-            if result.get('status') == 'updated':
-                def delayed_restart():
-                    time.sleep(1)
-                    print("🔄 Restarting application...")
-                    os.execv(sys.executable, [sys.executable, __file__])
-                
-                threading.Thread(target=delayed_restart, daemon=True).start()
-
         else:
             self.send_error(404)
 
@@ -669,11 +661,14 @@ class DownloadRequestHandler(http.server.SimpleHTTPRequestHandler):
         return # Suppress default logging
 
 
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
+
 def start_server(port=5000):
     """Start local HTTP server"""
     try:
         handler = DownloadRequestHandler
-        with socketserver.TCPServer(("", port), handler) as httpd:
+        with ThreadingHTTPServer(("", port), handler) as httpd:
             print(f"🌐 Server started on port {port}")
             httpd.serve_forever()
     except Exception as e:
