@@ -14,6 +14,7 @@ if %errorlevel% neq 0 (
     echo [ERROR] Python is not installed or not in PATH.
     echo Please install Python 3.10+ from python.org and try again.
     pause
+    pause
     exit /b 1
 )
 echo [OK] Python found.
@@ -24,6 +25,7 @@ if not exist ".venv" (
     python -m venv .venv
     if !errorlevel! neq 0 (
         echo [ERROR] Failed to create virtual environment.
+        pause
         pause
         exit /b 1
     )

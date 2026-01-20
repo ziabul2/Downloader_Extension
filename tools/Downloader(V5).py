@@ -50,7 +50,7 @@ if sys.platform == 'win32':
 # CONFIGURATION
 # ================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Add BASE_DIR to PATH so yt-dlp/ffmpeg/aria2c can see each other
+# Add BASE_DIR to PATH so yt-dlp/ffmpeg/aria2c/deno can see each other
 os.environ["PATH"] = BASE_DIR + os.pathsep + os.environ["PATH"]
 
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "..", "Downloads")
@@ -63,7 +63,10 @@ STATS_FILE = os.path.join(BASE_DIR, "download_stats.json")
 # Global configuration
 DEFAULT_CONFIG = {
     "max_concurrent_downloads": 3,
-    "use_aria2c": True,
+    "max_concurrent_downloads": 3,
+    "use_aria2c": False,
+    "aria2c_connections": 16,
+    "auto_update_ytdlp": True,
     "aria2c_connections": 16,
     "auto_update_ytdlp": True,
     "clipboard_monitor": False,
@@ -760,7 +763,7 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
                     progress = min(99, int((downloaded / total) * 100))
                     task['progress'] = progress
                     # Clean single-line output
-                    print(f"\r[{task.get('title', 'Unknown')[:30]}] {progress}% - {speed/1024:.1f} KB/s", end='', flush=True)
+                    print(f"\r[{task.get('title', 'Unknown')[:30]}] {progress}% - {speed/1024:.1f} KB/s   ", end='', flush=True)
                 else:
                     task['progress'] = 0
                     
@@ -835,6 +838,13 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
             "preferredcodec": audio_format,
             "preferredquality": "192",
         }]
+    # Deno check - Fix for "No supported JavaScript runtime"
+    deno_path = os.path.join(BASE_DIR, "deno.exe")
+    if os.path.exists(deno_path):
+        # We don't need to pass it explicitly if path is correct but adding it to system env path dynamically is safer earlier
+        # But we can also suggest it via internal logic if needed. 
+        # Actually yt-dlp finds it if in PATH.
+        pass 
     
     return opts
 
@@ -861,7 +871,12 @@ def download_video_async(url, platform='youtube', task=None):
             return info
             
     except Exception as e:
-        print(f"Error: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"\n❌ Download Error: {e}")
+        print(f"Details: {error_details}")
+        if task:
+            task['error'] = str(e)
         return None
 
 def download_audio_async(url, platform='youtube', task=None):
@@ -887,7 +902,12 @@ def download_audio_async(url, platform='youtube', task=None):
             return info
             
     except Exception as e:
-        print(f"Error: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"\n❌ Download Error: {e}")
+        print(f"Details: {error_details}")
+        if task:
+            task['error'] = str(e)
         return None
 
 # ================================================================
