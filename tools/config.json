@@ -1,0 +1,20 @@
+{
+  "max_concurrent_downloads": 2,
+  "use_aria2c": true,
+  "aria2c_connections": 16,
+  "auto_update_ytdlp": true,
+  "clipboard_monitor": false,
+  "use_cookies": false,
+  "browser_for_cookies": "chrome",
+  "notification_sound": true,
+  "download_quality": "1080p",
+  "video_format": "mp4",
+  "audio_format": "mp3",
+  "use_browser_download_dir": true,
+  "custom_download_dir": "",
+  "max_concurrent": 2,
+  "aria2c_conn": 16,
+  "auto_update": true,
+  "browser": "chrome",
+  "sound": true
+}

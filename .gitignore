@@ -1,0 +1,7 @@
+*.exe
+.venv/
+__pycache__/
+*.pyc
+Downloads/
+.vscode/
+.idea/

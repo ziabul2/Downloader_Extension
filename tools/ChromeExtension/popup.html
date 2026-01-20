@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="header">
+    <h1>🎬 ZIM Downloader</h1>
+    <button id="checkUpdateBtn" style="background:none; border:none; cursor:pointer; font-size:16px;"
+      title="Check for Updates">🔄</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="download">Download</button>
+    <button class="tab" data-tab="queue">Queue</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <!-- Download Tab -->
+  <div class="tab-content active" id="download">
+    <div class="download-section">
+      <label>Download Type</label>
+      <select id="downloadType">
+        <option value="video">Video (MP4)</option>
+        <option value="audio">Audio (MP3)</option>
+      </select>
+    </div>
+
+    <button id="sendTab">📥 Download Current Tab</button>
+    <div id="downloadStatus" class="status-message" style="display:none;"></div>
+
+    <!-- Current Speed Section -->
+    <div class="network-stats" style="margin-top: 15px;">
+      <div class="stat-card" style="grid-column: span 2;">
+        <div class="number" id="currentSpeedDownload" style="font-size: 20px;">0 KB/s</div>
+        <div class="label">Current Speed</div>
+      </div>
+    </div>
+
+    <!-- Active Downloads Section -->
+    <div class="active-section" id="activeDownloadsSection" style="margin-top: 20px; display:none;">
+      <h3 style="font-size: 14px; margin-bottom: 10px; color: #667eea;">🔄 Active Downloads</h3>
+      <div id="activeDownloadsInTab"></div>
+    </div>
+  </div>
+
+  <!-- Queue Tab -->
+  <div class="tab-content" id="queue">
+    <div class="queue-stats">
+      <div class="stat-card">
+        <div class="number" id="pendingCount">0</div>
+        <div class="label">Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="activeCount">0</div>
+        <div class="label">Active</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="completedCount">0</div>
+        <div class="label">Completed</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="failedCount">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="totalDownloads">0</div>
+        <div class="label">Total Downloads</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="todayDownloads">0</div>
+        <div class="label">Today's Downloads</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="tab-content" id="settings">
+    <div class="setting-item">
+      <label>Download Quality</label>
+      <select id="qualitySetting">
+        <option value="best">Best Quality</option>
+        <option value="2160p">4K (2160p)</option>
+        <option value="1440p">2K (1440p)</option>
+        <option value="1080p">1080p (Full HD)</option>
+        <option value="720p">720p (HD)</option>
+        <option value="480p">480p (SD)</option>
+        <option value="360p">360p</option>
+      </select>
+    </div>
+
+    <div class="setting-item">
+      <label>Video Format</label>
+      <select id="videoFormat">
+        <option value="mp4">MP4</option>
+        <option value="mkv">MKV</option>
+        <option value="webm">WEBM</option>
+      </select>
+    </div>
+
+    <div class="setting-item">
+      <label>Audio Format</label>
+      <select id="audioFormat">
+        <option value="mp3">MP3</option>
+        <option value="m4a">M4A</option>
+        <option value="opus">OPUS</option>
+        <option value="flac">FLAC</option>
+      </select>
+    </div>
+
+    <div class="setting-item">
+      <label>Max Concurrent Downloads</label>
+      <input type="number" id="maxConcurrent" min="1" max="10" value="3">
+    </div>
+
+    <div class="setting-item">
+      <label>
+        <input type="checkbox" id="useBrowserDownloadDir" checked>
+        Use Browser's Default Download Folder
+      </label>
+    </div>
+
+    <div class="setting-item" id="customFolderSection" style="display:none;">
+      <label>Custom Download Location</label>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="customDownloadLocation" readonly placeholder="No folder selected" style="flex: 1;">
+        <button id="selectFolderBtn" style="width: auto; padding: 10px 15px; font-size: 12px;">📁 Choose</button>
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <label>Current Download Location</label>
+      <input type="text" id="downloadLocation" readonly placeholder="Loading...">
+    </div>
+
+    <button id="saveSettings">💾 Save Settings</button>
+    <div id="settingsStatus" class="status-message" style="display:none;"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
