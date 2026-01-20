@@ -785,12 +785,13 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
         "concurrent_fragment_downloads": 5,
     }
 
-    # ALWAYS use aria2c if available for maximum speed
-    if CONFIG.get("use_aria2c") and check_aria2c():
-        aria2c_path = get_aria2c_path()
-        if aria2c_path:
-            opts["external_downloader"] = aria2c_path
-            opts["external_downloader_args"] = [
+    
+    # ALWAYS use aria2c if available and configured
+    aria2c_path = get_aria2c_path()
+    if CONFIG.get("use_aria2c") and aria2c_path and os.path.exists(aria2c_path):
+        opts["external_downloader"] = {"default": aria2c_path}
+        opts["external_downloader_args"] = {
+            "default": [
                 f"-x{CONFIG.get('aria2c_connections', 16)}",
                 "-k1M",
                 "--file-allocation=none",
@@ -801,6 +802,14 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
                 "--max-tries=5",
                 "--retry-wait=2"
             ]
+        }
+    else:
+        # Fallback to internal if aria2c not found but requested, or just not requested
+        if CONFIG.get("use_aria2c"):
+            print("⚠️ Aria2c configured but not found inside 'tools/' folder. Using native downloader.")
+            # Remove external downloader opts if any accidentally set
+            opts.pop("external_downloader", None)
+            opts.pop("external_downloader_args", None)
     
     # Add cookie support
     if CONFIG.get("use_cookies"):

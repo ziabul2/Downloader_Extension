@@ -84,7 +84,28 @@ if not exist "tools\aria2c.exe" (
         echo [ERROR] Download failed. Please download Aria2c manually.
     )
 ) else (
-    echo [OK] Aria2c found.
+)
+
+:: 7. CHECK DENO (Required for yt-dlp JS execution)
+if not exist "tools\deno.exe" (
+    echo [INFO] Deno not found. Downloading...
+    powershell -Command "Invoke-WebRequest -Uri 'https://github.com/denoland/deno/releases/download/v1.39.1/deno-x86_64-pc-windows-msvc.zip' -OutFile 'deno.zip'"
+    if exist "deno.zip" (
+        echo [INFO] Extracting Deno...
+        powershell -Command "Expand-Archive -Path 'deno.zip' -DestinationPath 'temp_deno' -Force"
+        
+        :: Move exe
+        for /r "temp_deno" %%f in (deno.exe) do move "%%f" "tools\" >nul
+        
+        :: Cleanup
+        del deno.zip
+        rmdir /s /q "temp_deno"
+        echo [OK] Deno installed.
+    ) else (
+        echo [ERROR] Download failed. Please download Deno manually.
+    )
+) else (
+    echo [OK] Deno found.
 )
 
 echo ================================================================
