@@ -25,6 +25,13 @@ import http.server
 import socketserver
 from urllib.parse import urlparse, parse_qs
 import webbrowser
+import urllib.request
+import threading
+import sys
+import time
+
+CURRENT_VERSION = "5.0"
+UPDATE_URL = "https://raw.githubusercontent.com/ziabul2/Downloader_Extension/main/tools/Downloader(V5).py"
 
 
 # ================================================================
@@ -201,6 +208,62 @@ def check_ytdlp_update():
             print("\r✅ yt-dlp is already up to date             ")
     except Exception as e:
         print(f"\r⚠️ Could not check for updates: {str(e)[:40]}")
+
+# ================================================================
+# SELF-UPDATE MECHANISM
+# ================================================================
+def compare_versions(v1, v2):
+    """Compare two version strings like '5.0' and '5.1'"""
+    try:
+        parts1 = [int(x) for x in v1.split('.')]
+        parts2 = [int(x) for x in v2.split('.')]
+        return parts1 < parts2
+    except:
+        return False
+
+def check_self_update(restart=True):
+    """Check for updates from GitHub"""
+    print(f"\n🔄 Checking for application updates (Current: v{CURRENT_VERSION})...")
+    
+    try:
+        # Fetch remote code
+        with urllib.request.urlopen(UPDATE_URL, timeout=10) as response:
+            remote_code = response.read().decode('utf-8')
+        
+        # Extract version
+        match = re.search(r'CURRENT_VERSION\s*=\s*[\'"]([0-9\.]+)[\'"]', remote_code)
+        if match:
+            remote_version = match.group(1)
+            
+            if compare_versions(CURRENT_VERSION, remote_version):
+                print(f"🚀 New version found: v{remote_version}")
+                print("⬇️  Downloading update...")
+                
+                # Backup current
+                shutil.copy2(__file__, __file__ + ".bak")
+                
+                # Write new
+                with open(__file__, 'w', encoding='utf-8') as f:
+                    f.write(remote_code)
+                
+                print("✅ Update installed successfully!")
+                
+                if restart:
+                    print("🔄 Restarting application...")
+                    time.sleep(1)
+                    config_arg = [sys.executable, __file__]
+                    os.execv(sys.executable, config_arg)
+                return {"status": "updated", "new_version": remote_version, "old_version": CURRENT_VERSION}
+            else:
+                print(f"✅ App is up to date (v{CURRENT_VERSION})")
+                return {"status": "uptodate", "version": CURRENT_VERSION}
+        else:
+            print("⚠️ Could not find version in remote file")
+            return {"status": "error", "message": "Version not found"}
+            
+    except Exception as e:
+        print(f"❌ Update check failed: {e}")
+        return {"status": "error", "message": str(e)}
 
 # ================================================================
 # COOKIE EXTRACTION
@@ -572,6 +635,33 @@ class DownloadRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
             except Exception as e:
                 self.send_error(500, str(e))
+        elif self.path == '/check_update':
+            # Trigger self-update check
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            # Run check in separate thread to allow response to send if restart happens
+            # But we want the result.
+            # If updated, it restarts, so response might fail if not sent quickly.
+            # We will send "started" or run check synchronously but delay restart.
+            
+            # Actually, let's run it synchronously but handle restart carefully.
+            # If we restart inside the function, this thread dies.
+            # So we will pass restart=False to check, then restart if needed after sending response.
+            
+            result = check_self_update(restart=False)
+            self.wfile.write(json.dumps(result).encode('utf-8'))
+            
+            if result.get('status') == 'updated':
+                def delayed_restart():
+                    time.sleep(1)
+                    print("🔄 Restarting application...")
+                    os.execv(sys.executable, [sys.executable, __file__])
+                
+                threading.Thread(target=delayed_restart, daemon=True).start()
+
         else:
             self.send_error(404)
 
@@ -806,7 +896,7 @@ def clear():
 def print_header():
     """Print header"""
     print("\n" + "="*70)
-    print("    🎬 ZIM UNIVERSAL MEDIA DOWNLOADER v3.0 PRO EDITION 🎬")
+    print(f"    🎬 ZIM UNIVERSAL MEDIA DOWNLOADER v{CURRENT_VERSION} PRO EDITION 🎬")
     print("                   Author: Ziabul Islam")
     print("="*70)
     print(f"📁 Downloads: {DOWNLOAD_DIR}")
@@ -1051,9 +1141,7 @@ def main():
                 time.sleep(1)
 
             elif choice == '11':
-                check_ytdlp_update()
-                print("\n🌐 Checking GitHub for extension updates...")
-                webbrowser.open("https://github.com/ziabul2/Downloader_Extension")
+                result = check_self_update(restart=True)
                 input("\n⏎ Press Enter to continue...")
             
             elif choice == '0':

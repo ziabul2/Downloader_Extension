@@ -346,8 +346,43 @@ loadSettings();
 syncStatsFromBackend();
 
 // Check Update Button
-document.getElementById('checkUpdateBtn').addEventListener('click', () => {
-    window.open('https://github.com/ziabul2/Downloader_Extension', '_blank');
+document.getElementById('checkUpdateBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('checkUpdateBtn');
+    const originalText = btn.innerHTML;
+
+    btn.innerHTML = '⏳'; // Loading spinner substitute
+    btn.disabled = true;
+
+    const statusEl = document.getElementById('settingsStatus'); // Reusing settings status for feedback if visible, or alert
+    // Better to use a toast or alert, or reuse a status element. 
+    // Let's create a temporary notification or use the status-message in settings if we can see it, 
+    // but the button is in the header.
+
+    try {
+        const response = await fetch(`${API_URL}/check_update`);
+        const result = await response.json();
+
+        if (result.status === 'updated') {
+            btn.innerHTML = '✅';
+            alert(`🚀 Updated to v${result.new_version}! App is restarting...`);
+        } else if (result.status === 'uptodate') {
+            btn.innerHTML = '✅';
+            setTimeout(() => btn.innerHTML = originalText, 2000);
+            // Optional: alert(`App is up to date (v${result.version})`);
+        } else {
+            btn.innerHTML = '❌';
+            alert(`Error: ${result.message}`);
+        }
+    } catch (e) {
+        btn.innerHTML = '❌';
+        alert('Could not connect to downloader app.');
+        console.error(e);
+    } finally {
+        setTimeout(() => {
+            if (btn.innerText !== '✅') btn.innerHTML = originalText;
+            btn.disabled = false;
+        }, 3000);
+    }
 });
 
 // Start queue updates immediately (for Download tab progress)
