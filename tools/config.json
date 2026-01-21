@@ -1,6 +1,6 @@
 {
   "max_concurrent_downloads": 2,
-  "use_aria2c": true,
+  "use_aria2c": false,
   "aria2c_connections": 16,
   "auto_update_ytdlp": true,
   "clipboard_monitor": false,

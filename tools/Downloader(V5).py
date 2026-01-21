@@ -30,7 +30,7 @@ import threading
 import sys
 import time
 
-CURRENT_VERSION = "5.1"
+CURRENT_VERSION = "5.5"
 UPDATE_URL = "https://raw.githubusercontent.com/ziabul2/Downloader_Extension/main/tools/Downloader(V5).py"
 
 
@@ -50,7 +50,7 @@ if sys.platform == 'win32':
 # CONFIGURATION
 # ================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Add BASE_DIR to PATH so yt-dlp/ffmpeg/aria2c/deno can see each other
+# Add BASE_DIR to PATH so yt-dlp/ffmpeg/aria2c can see each other
 os.environ["PATH"] = BASE_DIR + os.pathsep + os.environ["PATH"]
 
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "..", "Downloads")
@@ -63,7 +63,7 @@ STATS_FILE = os.path.join(BASE_DIR, "download_stats.json")
 # Global configuration
 DEFAULT_CONFIG = {
     "max_concurrent_downloads": 3,
-    "use_aria2c": False,
+    "use_aria2c": True,
     "aria2c_connections": 16,
     "auto_update_ytdlp": True,
     "clipboard_monitor": False,
@@ -405,9 +405,7 @@ class DownloadQueue:
     def _download_task(self, task):
         """Execute download task"""
         try:
-            # We set this initially, but specific functions will update to 'fetching' etc.
-            task['status'] = 'initializing'
-            print(f"\n🚀 Processing: {task['url'][:50]}...", end='')
+            task['status'] = 'downloading'
             
             # Perform download based on type
             if task['type'] == 'video':
@@ -677,8 +675,6 @@ def start_server(port=5000):
         print(f"⚠️ Could not start server: {e}")
 
 server_thread = threading.Thread(target=start_server, daemon=True)
-# server_thread.daemon = True # defaults to True from constructor, remove the False override
-
 
 
 # ================================================================
@@ -740,32 +736,6 @@ def clean_youtube_url(url):
     return url
 
 # ================================================================
-# CUSTOM LOGGER & DOWNLOAD FUNCTIONS
-# ================================================================
-class MyLogger:
-    def debug(self, msg):
-        pass
-        
-    def warning(self, msg):
-        # Broad filters for various warning types
-        ignored_keywords = [
-            "No supported JavaScript runtime",
-            "formats have been skipped",
-            "forcing SABR streaming",
-            "web_safari",
-            "web client"
-        ]
-        
-        if any(keyword in msg for keyword in ignored_keywords):
-            return
-            
-        # Print other warnings cleanly
-        print(f"\r⚠️  {msg}")
-
-    def error(self, msg):
-        print(f"\r❌ {msg}")
-
-# ================================================================
 # DOWNLOAD FUNCTIONS WITH ARIA2C
 # ================================================================
 def get_download_opts(output_dir, media_type='video', platform='youtube', task=None):
@@ -776,49 +746,29 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
         if task:
             status = d.get('status', '')
             if status == 'downloading':
-                # Fallback to existing total_bytes if d doesn't have it (common in chunks)
-                if total <= 0:
-                    total = task.get('total_bytes', 0)
+                total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+                downloaded = d.get('downloaded_bytes', 0)
+                speed = d.get('speed', 0)
+                eta = d.get('eta', 0)
                 
-                # Update task with latest info
+                task['downloaded_bytes'] = downloaded
+                task['total_bytes'] = total
                 task['speed'] = speed or 0
                 task['eta'] = eta or 0
                 
-                # Force at least 1% progress to show activity if we have bytes but unknown total
                 if total > 0:
                     progress = min(99, int((downloaded / total) * 100))
-                elif downloaded > 0:
-                     # If we have downloaded bytes but unknown total, show some progress
-                     progress = 99 if status == 'finished' else 5
+                    task['progress'] = progress
+                    # Clean single-line output
+                    print(f"\r[{task.get('title', 'Unknown')[:30]}] {progress}% - {speed/1024:.1f} KB/s", end='', flush=True)
                 else:
-                    progress = 0
-
-                task['progress'] = progress
-                width = 40
-                filled = int(width * (progress / 100))
-                bar = "█" * filled + "░" * (width - filled)
-                speed_mb = (speed / 1024 / 1024) if speed else 0
-                eta_sec = int(eta) if eta else 0
-                
-                # Format ETA
-                if eta_sec > 60:
-                    eta_str = f"{eta_sec//60}m {eta_sec%60}s"
-                else:
-                    eta_str = f"{eta_sec}s"
-                
-                # Carriage return (\r) and padding to overwrite previous line cleanly
-                print(f"\r[{task.get('title', 'Unknown')[:15]}...] {bar} {progress}% | {speed_mb:.1f} MB/s | ETA: {eta_str}    ", end='', flush=True)
-
+                    task['progress'] = 0
                     
             elif status == 'finished':
                 task['progress'] = 100
                 task['speed'] = 0
                 task['eta'] = 0
-                # Clear the progress line before printing finished
-                print(f"\r{' '*100}", end='\r')
-                print(f"✅ Download finished: {task.get('title', 'Unknown')[:50]}")
-
-    
+                print(f"\n✅ Download finished: {task.get('title', 'Unknown')[:50]}")
 
     
     opts = {
@@ -833,21 +783,14 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
         "ffmpeg_location": BASE_DIR,
         "progress_hooks": [progress_hook] if task else [],
         "concurrent_fragment_downloads": 5,
-        # FILENAME SANITIZATION (Fixes WinError 2 & Path issues)
-        "windowsfilenames": True,  # Force Windows-compatible names
-        "restrictfilenames": True, # Restrict to ASCII only (no emojis/special chars)
-        "trim_file_name": 200,     # Limit length to avoid MAX_PATH errors
-        "ignoreerrors": True,      # Continue on download errors
-        "logger": MyLogger(),      # Use custom logger to suppress warnings
     }
 
-    
-    # ALWAYS use aria2c if available and configured
-    aria2c_path = get_aria2c_path()
-    if CONFIG.get("use_aria2c") and aria2c_path and os.path.exists(aria2c_path):
-        opts["external_downloader"] = {"default": aria2c_path}
-        opts["external_downloader_args"] = {
-            "default": [
+    # ALWAYS use aria2c if available for maximum speed
+    if CONFIG.get("use_aria2c") and check_aria2c():
+        aria2c_path = get_aria2c_path()
+        if aria2c_path:
+            opts["external_downloader"] = aria2c_path
+            opts["external_downloader_args"] = [
                 f"-x{CONFIG.get('aria2c_connections', 16)}",
                 "-k1M",
                 "--file-allocation=none",
@@ -858,14 +801,6 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
                 "--max-tries=5",
                 "--retry-wait=2"
             ]
-        }
-    else:
-        # Fallback to internal if aria2c not found but requested, or just not requested
-        if CONFIG.get("use_aria2c"):
-            print("⚠️ Aria2c configured but not found inside 'tools/' folder. Using native downloader.")
-            # Remove external downloader opts if any accidentally set
-            opts.pop("external_downloader", None)
-            opts.pop("external_downloader_args", None)
     
     # Add cookie support
     if CONFIG.get("use_cookies"):
@@ -891,13 +826,6 @@ def get_download_opts(output_dir, media_type='video', platform='youtube', task=N
             "preferredcodec": audio_format,
             "preferredquality": "192",
         }]
-    # Deno check - Fix for "No supported JavaScript runtime"
-    deno_path = os.path.join(BASE_DIR, "deno.exe")
-    if os.path.exists(deno_path):
-        # We don't need to pass it explicitly if path is correct but adding it to system env path dynamically is safer earlier
-        # But we can also suggest it via internal logic if needed. 
-        # Actually yt-dlp finds it if in PATH.
-        pass 
     
     return opts
 
@@ -909,13 +837,8 @@ def download_video_async(url, platform='youtube', task=None):
         
         output_dir = get_output_dir(platform, 'video')
         
-        # Set status to fetching so UI updates
-        if task:
-            task['status'] = 'fetching'
-            print(f"\r⏳ Fetching video info...", end='', flush=True)
-        
-        # First, extract info to get title immediately - USING LOGGER to suppress warnings
-        with YoutubeDL({'quiet': True, 'logger': MyLogger(), 'ignoreerrors': True}) as ydl:
+        # First, extract info to get title immediately
+        with YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(url, download=False)
             if task and info:
                 task['title'] = info.get('title', 'Unknown')
@@ -929,12 +852,7 @@ def download_video_async(url, platform='youtube', task=None):
             return info
             
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"\n❌ Download Error: {e}")
-        print(f"Details: {error_details}")
-        if task:
-            task['error'] = str(e)
+        print(f"Error: {e}")
         return None
 
 def download_audio_async(url, platform='youtube', task=None):
@@ -945,13 +863,8 @@ def download_audio_async(url, platform='youtube', task=None):
         
         output_dir = get_output_dir(platform, 'audio')
         
-        # Set status to fetching
-        if task:
-            task['status'] = 'fetching'
-            print(f"\r⏳ Fetching audio info...", end='', flush=True)
-        
-        # First, extract info to get title immediately - USING LOGGER to suppress warnings
-        with YoutubeDL({'quiet': True, 'logger': MyLogger(), 'ignoreerrors': True}) as ydl:
+        # First, extract info to get title immediately
+        with YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(url, download=False)
             if task and info:
                 task['title'] = info.get('title', 'Unknown')
@@ -965,12 +878,7 @@ def download_audio_async(url, platform='youtube', task=None):
             return info
             
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"\n❌ Download Error: {e}")
-        print(f"Details: {error_details}")
-        if task:
-            task['error'] = str(e)
+        print(f"Error: {e}")
         return None
 
 # ================================================================
@@ -1221,6 +1129,8 @@ def main():
                 try:
                     os.startfile(DOWNLOAD_DIR)
                     print(f"\n✅ Opened: {DOWNLOAD_DIR}")
+                except Exception as e:
+                    print(f"\n❌ Error: {e}")
                 except Exception as e:
                     print(f"\n❌ Error: {e}")
                 time.sleep(1)
