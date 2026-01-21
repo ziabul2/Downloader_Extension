@@ -30,7 +30,7 @@ import threading
 import sys
 import time
 
-CURRENT_VERSION = "5.5"
+CURRENT_VERSION = "5.6"
 UPDATE_URL = "https://raw.githubusercontent.com/ziabul2/Downloader_Extension/main/tools/Downloader(V5).py"
 
 
